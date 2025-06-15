@@ -1,16 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Clock, CheckCircle, XCircle, Award, BookOpen, Play } from 'lucide-react';
-
-interface Question {
-  id: number;
-  question: string;
-  options: string[];
-  correctAnswer: number;
-  explanation: string;
-}
+import { testService, Question, TestResult } from '../services/testService';
+import { useAuth } from '../contexts/AuthContext';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 interface Test {
-  id: number;
+  id: string;
   title: string;
   subject: string;
   duration: number;
@@ -19,97 +14,108 @@ interface Test {
 }
 
 const Tests: React.FC = () => {
+  const { user } = useAuth();
   const [selectedTest, setSelectedTest] = useState<Test | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<number[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [userResults, setUserResults] = useState<TestResult[]>([]);
 
-  const availableTests: Test[] = [
-    {
-      id: 1,
-      title: 'JavaScript Fundamentals',
-      subject: 'JavaScript',
-      duration: 15,
-      difficulty: 'Easy',
-      questions: [
-        {
-          id: 1,
-          question: 'What is the correct way to declare a variable in JavaScript?',
-          options: ['var myVar = 5;', 'variable myVar = 5;', 'v myVar = 5;', 'declare myVar = 5;'],
-          correctAnswer: 0,
-          explanation: 'In JavaScript, variables are declared using var, let, or const keywords.'
-        },
-        {
-          id: 2,
-          question: 'Which method is used to add an element to the end of an array?',
-          options: ['append()', 'push()', 'add()', 'insert()'],
-          correctAnswer: 1,
-          explanation: 'The push() method adds one or more elements to the end of an array.'
-        },
-        {
-          id: 3,
-          question: 'What does "=== " operator do in JavaScript?',
-          options: ['Assignment', 'Equality check', 'Strict equality check', 'Not equal'],
-          correctAnswer: 2,
-          explanation: 'The === operator checks for strict equality, comparing both value and type.'
-        }
-      ]
-    },
-    {
-      id: 2,
-      title: 'React Basics',
-      subject: 'React',
-      duration: 20,
-      difficulty: 'Medium',
-      questions: [
-        {
-          id: 1,
-          question: 'What is JSX?',
-          options: ['A JavaScript library', 'A syntax extension for JavaScript', 'A CSS framework', 'A database'],
-          correctAnswer: 1,
-          explanation: 'JSX is a syntax extension for JavaScript that allows you to write HTML-like code in React.'
-        },
-        {
-          id: 2,
-          question: 'Which hook is used for state management in functional components?',
-          options: ['useEffect', 'useState', 'useContext', 'useReducer'],
-          correctAnswer: 1,
-          explanation: 'useState is the primary hook for managing state in functional components.'
-        }
-      ]
-    },
-    {
-      id: 3,
-      title: 'Python Data Structures',
-      subject: 'Python',
-      duration: 25,
-      difficulty: 'Medium',
-      questions: [
-        {
-          id: 1,
-          question: 'Which data structure is mutable in Python?',
-          options: ['Tuple', 'String', 'List', 'Integer'],
-          correctAnswer: 2,
-          explanation: 'Lists are mutable in Python, meaning you can modify them after creation.'
-        },
-        {
-          id: 2,
-          question: 'What method is used to add an item to a set?',
-          options: ['append()', 'add()', 'insert()', 'push()'],
-          correctAnswer: 1,
-          explanation: 'The add() method is used to add a single element to a set.'
-        }
-      ]
+  useEffect(() => {
+    loadData();
+  }, [user]);
+
+  const loadData = async () => {
+    if (!user) return;
+    
+    try {
+      setLoading(true);
+      const [questionsData, resultsData] = await Promise.all([
+        testService.getQuestions(),
+        testService.getUserTestResults(user.id)
+      ]);
+      
+      setQuestions(questionsData);
+      setUserResults(resultsData);
+    } catch (error) {
+      console.error('Error loading test data:', error);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  const generateTests = (): Test[] => {
+    const subjects = ['JavaScript', 'React', 'Python', 'HTML/CSS'];
+    const tests: Test[] = [];
+
+    subjects.forEach(subject => {
+      const subjectQuestions = questions.filter(q => q.subject === subject);
+      if (subjectQuestions.length >= 3) {
+        const difficulties: ('Easy' | 'Medium' | 'Hard')[] = ['Easy', 'Medium', 'Hard'];
+        
+        difficulties.forEach(difficulty => {
+          const difficultyQuestions = subjectQuestions.filter(q => q.difficulty === difficulty);
+          if (difficultyQuestions.length >= 3) {
+            tests.push({
+              id: `${subject.toLowerCase()}-${difficulty.toLowerCase()}`,
+              title: `${subject} ${difficulty}`,
+              subject,
+              duration: difficulty === 'Easy' ? 15 : difficulty === 'Medium' ? 20 : 25,
+              questions: difficultyQuestions.slice(0, 5), // Take first 5 questions
+              difficulty
+            });
+          }
+        });
+      }
+    });
+
+    // Add default tests if no questions available
+    if (tests.length === 0) {
+      return [
+        {
+          id: 'javascript-basics',
+          title: 'JavaScript Fundamentals',
+          subject: 'JavaScript',
+          duration: 15,
+          difficulty: 'Easy',
+          questions: [
+            {
+              id: '1',
+              subject: 'JavaScript',
+              question: 'What is the correct way to declare a variable in JavaScript?',
+              options: ['var myVar = 5;', 'variable myVar = 5;', 'v myVar = 5;', 'declare myVar = 5;'],
+              correctAnswer: 0,
+              difficulty: 'Easy',
+              explanation: 'In JavaScript, variables are declared using var, let, or const keywords.'
+            },
+            {
+              id: '2',
+              subject: 'JavaScript',
+              question: 'Which method is used to add an element to the end of an array?',
+              options: ['append()', 'push()', 'add()', 'insert()'],
+              correctAnswer: 1,
+              difficulty: 'Easy',
+              explanation: 'The push() method adds one or more elements to the end of an array.'
+            }
+          ]
+        }
+      ];
+    }
+
+    return tests;
+  };
+
+  const availableTests = generateTests();
 
   const startTest = (test: Test) => {
     setSelectedTest(test);
     setCurrentQuestion(0);
     setSelectedAnswers(new Array(test.questions.length).fill(-1));
     setShowResults(false);
-    setTimeLeft(test.duration * 60); // Convert to seconds
+    setTimeLeft(test.duration * 60);
   };
 
   const selectAnswer = (answerIndex: number) => {
@@ -130,7 +136,33 @@ const Tests: React.FC = () => {
     }
   };
 
-  const submitTest = () => {
+  const submitTest = async () => {
+    if (!selectedTest || !user) return;
+
+    const score = calculateScore();
+    const correctAnswers = selectedTest.questions.filter((question, index) => 
+      selectedAnswers[index] === question.correctAnswer
+    ).length;
+
+    const testResult: Omit<TestResult, 'id'> = {
+      userId: user.id,
+      testId: selectedTest.id,
+      testTitle: selectedTest.title,
+      score,
+      totalQuestions: selectedTest.questions.length,
+      correctAnswers,
+      answers: selectedAnswers,
+      timeSpent: (selectedTest.duration * 60) - timeLeft,
+      completedAt: new Date()
+    };
+
+    try {
+      await testService.saveTestResult(testResult);
+      setUserResults([testResult as TestResult, ...userResults]);
+    } catch (error) {
+      console.error('Error saving test result:', error);
+    }
+
     setShowResults(true);
   };
 
@@ -161,7 +193,7 @@ const Tests: React.FC = () => {
   };
 
   // Timer effect
-  React.useEffect(() => {
+  useEffect(() => {
     if (selectedTest && !showResults && timeLeft > 0) {
       const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
       return () => clearTimeout(timer);
@@ -169,6 +201,14 @@ const Tests: React.FC = () => {
       submitTest();
     }
   }, [selectedTest, showResults, timeLeft]);
+
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center justify-center h-full">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
 
   if (showResults && selectedTest) {
     const score = calculateScore();
@@ -348,7 +388,7 @@ const Tests: React.FC = () => {
                 <BookOpen className="w-6 h-6 text-white" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-white">12</p>
+                <p className="text-2xl font-bold text-white">{userResults.length}</p>
                 <p className="text-white/60">Tests Completed</p>
               </div>
             </div>
@@ -359,7 +399,11 @@ const Tests: React.FC = () => {
                 <Award className="w-6 h-6 text-white" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-white">87%</p>
+                <p className="text-2xl font-bold text-white">
+                  {userResults.length > 0 
+                    ? Math.round(userResults.reduce((sum, result) => sum + result.score, 0) / userResults.length)
+                    : 0}%
+                </p>
                 <p className="text-white/60">Average Score</p>
               </div>
             </div>
@@ -370,7 +414,11 @@ const Tests: React.FC = () => {
                 <Clock className="w-6 h-6 text-white" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-white">3.2h</p>
+                <p className="text-2xl font-bold text-white">
+                  {userResults.length > 0 
+                    ? Math.round(userResults.reduce((sum, result) => sum + result.timeSpent, 0) / 3600 * 10) / 10
+                    : 0}h
+                </p>
                 <p className="text-white/60">Time Spent</p>
               </div>
             </div>
@@ -380,35 +428,43 @@ const Tests: React.FC = () => {
         {/* Available Tests */}
         <div>
           <h2 className="text-xl font-semibold text-white mb-6">Available Tests</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {availableTests.map((test) => (
-              <div key={test.id} className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 overflow-hidden hover:bg-white/15 transition-all duration-300">
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className={`px-3 py-1 bg-gradient-to-r ${getDifficultyColor(test.difficulty)} rounded-full text-white text-sm font-medium`}>
-                      {test.difficulty}
+          {availableTests.length === 0 ? (
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20 text-center">
+              <BookOpen className="w-16 h-16 text-white/40 mx-auto mb-4" />
+              <h3 className="text-white font-semibold mb-2">No Tests Available</h3>
+              <p className="text-white/70">Tests will appear here once questions are added by administrators.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {availableTests.map((test) => (
+                <div key={test.id} className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 overflow-hidden hover:bg-white/15 transition-all duration-300">
+                  <div className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className={`px-3 py-1 bg-gradient-to-r ${getDifficultyColor(test.difficulty)} rounded-full text-white text-sm font-medium`}>
+                        {test.difficulty}
+                      </div>
+                      <div className="flex items-center space-x-1 text-white/60">
+                        <Clock className="w-4 h-4" />
+                        <span className="text-sm">{test.duration}min</span>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-1 text-white/60">
-                      <Clock className="w-4 h-4" />
-                      <span className="text-sm">{test.duration}min</span>
-                    </div>
+                    
+                    <h3 className="text-lg font-semibold text-white mb-2">{test.title}</h3>
+                    <p className="text-white/70 text-sm mb-4">Subject: {test.subject}</p>
+                    <p className="text-white/60 text-sm mb-6">{test.questions.length} questions</p>
+                    
+                    <button
+                      onClick={() => startTest(test)}
+                      className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white py-3 px-4 rounded-lg font-medium hover:from-blue-600 hover:to-purple-700 transition-all duration-200"
+                    >
+                      <Play className="w-4 h-4" />
+                      <span>Start Test</span>
+                    </button>
                   </div>
-                  
-                  <h3 className="text-lg font-semibold text-white mb-2">{test.title}</h3>
-                  <p className="text-white/70 text-sm mb-4">Subject: {test.subject}</p>
-                  <p className="text-white/60 text-sm mb-6">{test.questions.length} questions</p>
-                  
-                  <button
-                    onClick={() => startTest(test)}
-                    className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white py-3 px-4 rounded-lg font-medium hover:from-blue-600 hover:to-purple-700 transition-all duration-200"
-                  >
-                    <Play className="w-4 h-4" />
-                    <span>Start Test</span>
-                  </button>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,24 +1,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: 'student' | 'admin';
-  avatar?: string;
-  bio?: string;
-  skills?: string[];
-  achievements?: string[];
-  following?: string[];
-  followers?: string[];
-}
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../config/firebase';
+import { authService, User } from '../services/authService';
 
 interface AuthContextType {
   user: User | null;
+  loading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   signup: (name: string, email: string, password: string) => Promise<boolean>;
-  logout: () => void;
-  updateProfile: (updates: Partial<User>) => void;
+  logout: () => Promise<void>;
+  updateProfile: (updates: Partial<User>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -33,77 +24,72 @@ export const useAuth = () => {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for saved user in localStorage
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const userData = await authService.getCurrentUser();
+          setUser(userData);
+        } catch (error) {
+          console.error('Error getting user data:', error);
+          setUser(null);
+        }
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Mock authentication - in real app, this would be an API call
-    if (email && password) {
-      const mockUser: User = {
-        id: '1',
-        name: email === 'admin@test.com' ? 'Admin User' : 'Student User',
-        email,
-        role: email === 'admin@test.com' ? 'admin' : 'student',
-        bio: 'Passionate about learning and coding',
-        skills: ['JavaScript', 'React', 'Python'],
-        achievements: ['Completed 10 coding challenges'],
-        following: [],
-        followers: []
-      };
-      setUser(mockUser);
-      localStorage.setItem('user', JSON.stringify(mockUser));
+    try {
+      const userData = await authService.signIn(email, password);
+      setUser(userData);
       return true;
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
     }
-    return false;
   };
 
   const signup = async (name: string, email: string, password: string): Promise<boolean> => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    if (name && email && password) {
-      const newUser: User = {
-        id: Date.now().toString(),
-        name,
-        email,
-        role: 'student',
-        bio: '',
-        skills: [],
-        achievements: [],
-        following: [],
-        followers: []
-      };
-      setUser(newUser);
-      localStorage.setItem('user', JSON.stringify(newUser));
+    try {
+      const userData = await authService.signUp(name, email, password);
+      setUser(userData);
       return true;
+    } catch (error) {
+      console.error('Signup error:', error);
+      return false;
     }
-    return false;
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('user');
+  const logout = async (): Promise<void> => {
+    try {
+      await authService.signOut();
+      setUser(null);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
-  const updateProfile = (updates: Partial<User>) => {
+  const updateProfile = async (updates: Partial<User>): Promise<void> => {
     if (user) {
-      const updatedUser = { ...user, ...updates };
-      setUser(updatedUser);
-      localStorage.setItem('user', JSON.stringify(updatedUser));
+      try {
+        await authService.updateUserProfile(user.id, updates);
+        setUser({ ...user, ...updates });
+      } catch (error) {
+        console.error('Update profile error:', error);
+        throw error;
+      }
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, signup, logout, updateProfile }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, logout, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );
