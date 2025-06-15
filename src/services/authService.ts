@@ -55,9 +55,10 @@ export const authService = {
     }
   },
 
-  // Sign in existing user
+  // Sign in existing user or create demo user if doesn't exist
   async signIn(email: string, password: string): Promise<User> {
     try {
+      // First try to sign in
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
 
@@ -65,7 +66,23 @@ export const authService = {
       const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
       
       if (!userDoc.exists()) {
-        throw new Error('User data not found');
+        // Create user document if it doesn't exist
+        const userData: User = {
+          id: firebaseUser.uid,
+          name: firebaseUser.displayName || 'User',
+          email: firebaseUser.email || email,
+          role: email === 'admin@test.com' ? 'admin' : 'student',
+          bio: '',
+          skills: [],
+          achievements: [],
+          following: [],
+          followers: [],
+          createdAt: new Date(),
+          lastActive: new Date()
+        };
+
+        await setDoc(doc(db, 'users', firebaseUser.uid), userData);
+        return userData;
       }
 
       const userData = userDoc.data() as User;
@@ -75,6 +92,49 @@ export const authService = {
         lastActive: new Date()
       });
 
+      return userData;
+    } catch (error: any) {
+      // If user doesn't exist and it's a demo account, create it
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        if (email === 'student@test.com' || email === 'admin@test.com') {
+          return await this.createDemoUser(email, password);
+        }
+      }
+      throw new Error(error.message);
+    }
+  },
+
+  // Create demo users
+  async createDemoUser(email: string, password: string): Promise<User> {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+
+      const name = email === 'admin@test.com' ? 'Admin User' : 'Student User';
+      
+      // Update the user's display name
+      await updateProfile(firebaseUser, { displayName: name });
+
+      // Create user document in Firestore
+      const userData: User = {
+        id: firebaseUser.uid,
+        name,
+        email,
+        role: email === 'admin@test.com' ? 'admin' : 'student',
+        bio: email === 'admin@test.com' 
+          ? 'Platform administrator with full access to manage users and content.' 
+          : 'Student exploring the world of programming and technology.',
+        skills: email === 'admin@test.com' 
+          ? ['Platform Management', 'User Administration', 'Content Moderation']
+          : ['JavaScript', 'React', 'HTML/CSS'],
+        achievements: [],
+        following: [],
+        followers: [],
+        createdAt: new Date(),
+        lastActive: new Date()
+      };
+
+      await setDoc(doc(db, 'users', firebaseUser.uid), userData);
       return userData;
     } catch (error: any) {
       throw new Error(error.message);
@@ -97,7 +157,25 @@ export const authService = {
 
     try {
       const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-      if (!userDoc.exists()) return null;
+      if (!userDoc.exists()) {
+        // Create user document if it doesn't exist
+        const userData: User = {
+          id: firebaseUser.uid,
+          name: firebaseUser.displayName || 'User',
+          email: firebaseUser.email || '',
+          role: firebaseUser.email === 'admin@test.com' ? 'admin' : 'student',
+          bio: '',
+          skills: [],
+          achievements: [],
+          following: [],
+          followers: [],
+          createdAt: new Date(),
+          lastActive: new Date()
+        };
+
+        await setDoc(doc(db, 'users', firebaseUser.uid), userData);
+        return userData;
+      }
 
       return userDoc.data() as User;
     } catch (error) {

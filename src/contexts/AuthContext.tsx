@@ -50,7 +50,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const userData = await authService.signIn(email, password);
       setUser(userData);
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
       return false;
     }
@@ -61,7 +61,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const userData = await authService.signUp(name, email, password);
       setUser(userData);
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Signup error:', error);
       return false;
     }

@@ -23,12 +23,23 @@ const Login: React.FC = () => {
       if (success) {
         navigate('/');
       } else {
-        setError('Invalid email or password');
+        setError('Login failed. Please check your credentials and try again.');
       }
-    } catch (err) {
-      setError('Login failed. Please try again.');
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setError('Login failed. Please check your credentials and try again.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fillDemoCredentials = (type: 'student' | 'admin') => {
+    if (type === 'student') {
+      setEmail('student@test.com');
+      setPassword('password');
+    } else {
+      setEmail('admin@test.com');
+      setPassword('password');
     }
   };
 
@@ -46,10 +57,22 @@ const Login: React.FC = () => {
 
         {/* Demo Credentials */}
         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-4 mb-6 border border-white/20">
-          <h3 className="text-white font-medium mb-2">Demo Credentials:</h3>
-          <div className="text-white/80 text-sm space-y-1">
-            <p><span className="font-medium">Student:</span> student@test.com / password</p>
-            <p><span className="font-medium">Admin:</span> admin@test.com / password</p>
+          <h3 className="text-white font-medium mb-3">Quick Demo Access:</h3>
+          <div className="space-y-2">
+            <button
+              onClick={() => fillDemoCredentials('student')}
+              className="w-full text-left p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
+            >
+              <span className="text-blue-400 font-medium">Student Account</span>
+              <p className="text-white/70 text-sm">student@test.com / password</p>
+            </button>
+            <button
+              onClick={() => fillDemoCredentials('admin')}
+              className="w-full text-left p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
+            >
+              <span className="text-purple-400 font-medium">Admin Account</span>
+              <p className="text-white/70 text-sm">admin@test.com / password</p>
+            </button>
           </div>
         </div>
 
